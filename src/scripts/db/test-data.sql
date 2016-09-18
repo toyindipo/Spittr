@@ -1,0 +1,1 @@
+insert into Spitter (username, password, firstName, lastName, email) values ('toyindipo', 'password', 'Toyin', 'Dipo', 'toyin@dipo.com');

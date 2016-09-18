@@ -1,0 +1,105 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec=
+          "http://www.thymeleaf.org/thymeleaf-extras-springsecurity3">
+  <head>
+    <title>Spitter</title>
+    <link rel="stylesheet" 
+          type="text/css" 
+          th:href="@{/resources/style.css}" ></link>
+    <script th:src="@{/webjars/sockjs-client/0.3.4/sockjs.min.js}"></script>
+    <script th:src="@{/webjars/stomp-websocket/2.3.0/stomp.min.js}"></script>
+    <script th:src="@{/webjars/jquery/2.0.3/jquery.min.js}"></script>
+    <script th:src="@{/webjars/handlebars/4.0.5/handlebars.min.js}"></script>
+  </head>
+  <body>
+    <div id="header" th:include="page :: header"></div>
+  
+    <div id="content">
+      <div class="spittleForm">
+        <h1>Spit it out...</h1>
+        <form method="POST" name="spittleForm" id="spittleForm">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+          <input type="hidden" name="latitude" />
+          <input type="hidden" name="longitude" />
+          <textarea name="text" cols="80" rows="5"></textarea><br/>
+          <div sec:authorize="isAnonymous()">
+  			Login to post spittle
+		  </div>
+		  <div sec:authorize="isAuthenticated()">
+  			<input type="submit" value="Add" />
+		  </div>          
+        </form>
+      </div>
+      
+      <div id="output"></div>
+      
+      <div class="listTitle">
+        <h1>Recent Spittles</h1>
+        <ul class="spittleList">
+          <li th:each="spittle : ${spittleList}" 
+              th:id="'spittle_' + ${spittle.id}">
+            <div class="spittleMessage" th:text="${spittle.message}">Spittle message</div>
+            <div>
+              <span class="spittleTime" th:text="${spittle.time}">spittle timestamp</span>
+              <span class="spittleLocation" th:text="'(' + ${spittle.latitude} + ', ' + ${spittle.longitude} + ')'">lat, long</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+    
+    <div id="footer" th:include="page :: copy"></div>
+    
+    <script th:inline="javascript">
+    	$('#spittleForm').submit(function(e){
+    		e.preventDefault();
+    		var text = $('#spittleForm').find('textarea[name="text"]').val();
+    		sendSpittle(text);
+    	});
+    
+      var sock = new SockJS([[@{/spittr}]]);
+      var stomp = Stomp.over(sock);
+
+      stomp.connect('guest', 'guest', function(frame) {
+        console.log('*****  Connected  *****');
+        stomp.subscribe("/topic/spittlefeed", handleSpittle);
+        stomp.subscribe("/user/queue/notifications", handleNotification);
+      });
+      
+      function handleSpittle(message) {
+    	console.log('Spittle:', message);
+    	var spittle = JSON.parse(message.body);
+   	    console.log('Received: ', spittle);
+   	    var source = $("#spittle-template").html();
+   	    var template = Handlebars.compile(source);
+   	    var spittleHtml = template(spittle);
+   	    $('.spittleList').prepend(spittleHtml);
+      }
+      
+      function handleNotification(message) {
+        console.log('Notification: ', message);
+        $('#output').append("<b>Received: " + 
+            JSON.parse(message.body).message + "</b><br/>")
+      }
+      
+      function sendSpittle(text) {
+    	alert('Sending Spittle');
+        console.log('Sending Spittle');
+        stomp.send("/app/spittle", {}, 
+            JSON.stringify({ 'text': text }));
+      }
+
+      $('#stop').click(function() {sock.close()});
+      </script>
+      
+      <script id="spittle-template" type="text/x-handlebars-template">
+        <li id="preexist">
+          <div class="spittleMessage">{{message}}</div>
+          <div>
+          <span class="spittleTime">{{time}}</span>
+          <span class="spittleLocation">({{latitude}}, {{longitude}})</span> </div>
+         </li>
+	  </script>
+  </body>
+</html>
